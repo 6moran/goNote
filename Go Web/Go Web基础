@@ -1,0 +1,1285 @@
+## Web服务器的工作原理：
+
+- 客户机通过 TCP/IP 协议建立到服务器的 TCP 连接
+- 客户端向服务器发送 HTTP 协议请求包，请求服务器里的资源文档
+- 服务器向客户机发送 HTTP 协议应答包，如果请求的资源包含有动态语言的内容，那么服务器会调用动态语言的解释引擎负责处理“动态内容”，并将处理得到的数据返回给客户端
+- 客户机与服务器断开。由客户端解释 HTML 文档，在客户端屏幕上渲染图形结果
+
+PS：需要注意的是客户机与服务器之间的通信是非持久连接的，也就是当服务器发送了应答后就与客户机断开连接，等待下一次请求。
+
+
+
+## TCP和UDP的区别
+
+| 特性             | TCP                                                        | UDP                                    |
+| ---------------- | ---------------------------------------------------------- | -------------------------------------- |
+| **连接方式**     | 面向连接，需要三次握手                                     | 无连接，直接发送数据报                 |
+| **可靠性**       | 高可靠性，有序传输、重传机制、流量控制和拥塞控制           | 不可靠，可能丢包、乱序或重复           |
+| **数据传输单位** | 字节流（stream）                                           | 数据报（datagram）                     |
+| **传输顺序**     | 保证顺序                                                   | 不保证顺序                             |
+| **报文大小**     | TCP 自动拆分和组装                                         | UDP 数据报有最大长度限制（通常 64KB）  |
+| **开销**         | 较大，头部 20 字节 + 控制机制                              | 较小，头部仅 8 字节，无控制机制        |
+| **速度**         | 相对慢，因可靠机制增加延迟                                 | 较快，延迟低                           |
+| **适合场景**     | 文件传输（FTP）、网页请求（HTTP/HTTPS）、邮件（SMTP/IMAP） | 视频直播、语音通话、在线游戏、DNS 查询 |
+
+
+
+
+
+## URL和DNS
+
+### URL解析
+
+URL(Uniform Resource Locattor)是“统一资源定位符”的英文缩写，用于描述一个网络上的资源。
+
+![image-20260207081904234](C:\Users\16053\AppData\Roaming\Typora\typora-user-images\image-20260207081904234.png)
+
+```go
+scheme://host[:port#]/path/.../[?query-string][#anchor]
+scheme         指定底层使用的协议(例如：http, https, ftp)
+host           HTTP 服务器的 IP 地址或者域名
+port#          HTTP 服务器的默认端口是 80，这种情况下端口号可以省略。如果使用了别的端口，必须指明，例如 http://www.cnblogs.com:8080/
+path           访问资源的路径
+query-string   发送给 http 服务器的数据
+anchor         锚
+```
+
+
+
+
+
+### DNS解析
+
+DNS解析分为迭代查询过程和递归查询过程
+
+![image-20260204090835915](C:\Users\16053\AppData\Roaming\Typora\typora-user-images\image-20260204090835915.png)
+
+迭代查询，相当于本地自身不断去问，最终得到域名的过程。
+
+递归查询，相当于客户端问了本地，本地全权负责，最后返回一个结果给客户端，期间客户端不需要再询问别的服务器。
+
+
+
+## Socket(套接字)
+
+Socket就是实现网络上双向通讯连接的一套API
+
+### Socket分类
+
+- 按照连接时间
+  - 短连接
+  - 长连接（HTTP 1.1 开始也支持长连接，用其替换Socket）
+- 按照客户端和服务端的数量
+  - 点对点
+  - 点对多
+  - 多对多
+
+
+
+
+
+## HTTP协议
+
+HTTP 是一种让 Web 服务器与浏览器 (客户端) 通过 Internet 发送与接收数据的协议，它建立在 TCP 协议之上，一般采用 TCP 的 80 端口。它是一个请求、响应协议 -- 客户端发出一个请求，服务器响应这个请求。
+
+HTTP 协议是无状态的，同一个客户端的这次请求和上次请求是没有对应关系，对 HTTP 服务器来说，它并不知道这两个请求是否来自同一个客户端。为了解决这个问题， Web 程序引入了 Cookie 机制来维护连接的可持续状态。
+
+
+
+### 软件模型
+
+- B/S结构，客户端浏览器/服务器，客户端是运行在浏览器中的。
+- C/S结构，客户端/服务端，客户端是独立的软件。
+
+
+
+### HTTP请求包（浏览器信息）
+
+结构示例：
+
+```go
+GET /domains/example/ HTTP/1.1      // 请求行: 请求方法 请求 URI HTTP 协议/协议版本
+//请求头内容如下
+Host：www.iana.org               // 服务端的主机名
+User-Agent：Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.4 (KHTML, like Gecko) Chrome/22.0.1229.94 Safari/537.4          // 浏览器信息
+Accept：text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8  // 客户端能接收的 mine
+Accept-Encoding：gzip,deflate,sdch       // 是否支持流压缩
+Accept-Charset：UTF-8,*;q=0.5        // 客户端字符编码集
+// 空行,用于分割请求头和消息体，标记了请求头的结束，这个空行是必要的
+// 消息体,请求资源参数,例如 POST 传递的参数
+```
+
+GET请求方法一般没有消息体。
+
+HTTP有四种基本的请求方法：GET、POST、PUT、DELETE
+
+![image-20260210084545971](C:\Users\16053\AppData\Roaming\Typora\typora-user-images\image-20260210084545971.png)
+
+
+
+### GET和POST的区别：
+
+我们可以看到 GET 请求消息体为空，POST 请求带有消息体。
+GET 提交的数据会放在 URL 之后，以 **?** 分割 URL 和传输数据，参数之间以 **&** 相连，如 `EditPosts.aspx?name=test1&id=123456`。POST 方法是把提交的数据放在 HTTP 包的 body 中。
+GET 提交的数据大小有限制（因为浏览器对 URL 的长度有限制），而 POST 方法提交的数据没有限制。
+GET 方式提交数据，会带来安全问题，比如一个登录页面，通过 GET 方式提交数据时，用户名和密码将出现在 URL 上，如果页面可以被缓存或者其他人可以访问这台机器，就可以从历史记录获得该用户的账号和密码。
+
+![image-20260209083211327](C:\Users\16053\AppData\Roaming\Typora\typora-user-images\image-20260209083211327.png)
+
+
+
+
+
+### HTTP响应包（服务器信息）
+
+结构示例：
+
+```go
+HTTP/1.1 200 OK                     // 状态行
+Server: nginx/1.0.8                 // 服务器使用的 WEB 软件名及版本
+Date: Tue, 30 Oct 2012 04:14:25 GMT     // 发送时间
+Content-Type: text/html             // 服务器发送信息的类型
+Transfer-Encoding: chunked          // 表示发送 HTTP 包是分段发的
+Connection: keep-alive              // 保持连接状态
+Content-Length: 90                  // 主体内容长度
+// 空行 用来分割消息头和主体
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"... // 消息体
+```
+
+Response 包中的第一行叫做状态行，由 HTTP 协议版本号， 状态码， 状态消息三部分组成。
+
+状态码用来告诉 HTTP 客户端，HTTP 服务器是否产生了预期的 Response。HTTP/1.1 协议中定义了 5 类状态码， 状态码由三位数字组成，第一个数字定义了响应的类别
+
+- 1XX 提示信息 - 表示请求已被成功接收，继续处理
+- 2XX 成功 - 表示请求已被成功接收，理解，接受
+- 3XX 重定向 - 要完成请求必须进行更进一步的处理
+- 4XX 客户端错误 - 请求有语法错误或请求无法实现
+- 5XX 服务器端错误 - 服务器未能实现合法的请求
+
+
+
+### HTTP协议是无状态的
+
+无状态是指协议对于事务处理没有记忆能力，服务器不知道客户端是什么状态。从另一方面讲，打开一个服务器上的网页和你之前打开这个服务器上的网页之间没有任何联系。
+
+
+
+### HTTP协议的Connection:keep-alive特性
+
+从 HTTP/1.1 起，默认都开启了 Keep-Alive 保持连接特性，简单地说，当一个网页打开完成后，客户端和服务器之间用于传输 HTTP 数据的 TCP 连接不会关闭，如果客户端再次访问这个服务器上的网页，会继续使用这一条已经建立的 TCP 连接。
+
+Keep-Alive 不会永久保持连接，它有一个保持时间，可以在不同服务器软件（如 Apache）中设置这个时间。
+
+
+
+### HTTP协议和HTTPS协议的区别
+
+#### HTTP的不足之处
+
+- 通信使用明文（不加密），内容可能会被窃听。
+- 不验证通信方的身份，因此有可能遭遇伪装。
+- 无法证明报文的完整性，所以有可能已遭篡改。
+
+#### 1、加密方式
+
+##### 通信的加密方式
+
+**SSL（Secure Socket Layer，安全套接层）和TLS（Transport Layer Security，安全层传输协议）**
+
+与SSL组合使用的HTTP被称为HTTPS（HTTP Secure，超文本传输安全协议）或HTTP over SSL。
+
+
+
+##### 内容的加密方式
+
+将HTTP协议传输的内容本身进行加密，前提是要求客户端和服务器同时具备加密和解密机制。
+
+![image-20260313093602807](C:\Users\16053\AppData\Roaming\Typora\typora-user-images\image-20260313093602807.png)
+
+
+
+由于该方式只对内容加密，不同于SSL和TLS将整个线路进行加密，所以内容仍有被篡改的风险。
+
+
+
+#### 2、验证身份
+
+HTTP协议中的请求和响应不会对通信方进行确认。
+
+所以会存在以下**隐患**：
+
+- 无法确定请求发送至目标的 Web 服务器是否是按真实意图返回响应的那台服务器。有可能是已**伪装的 Web 服务器**。
+
+- 无法确定响应返回到的客户端是否是按真实意图接收响应的那个客户端。有可能是已**伪装的客户端**。
+- **无法确定正在通信的对方是否具备访问权限**。因为某些 Web 服务器上保存着重要的信息，只想发给特定用户通信的权限。
+- 无法判定请求是来自何方、出自谁手。
+- 即使是**无意义的请求**也会照单全收。无法阻止海量请求下的 DoS攻击（Denial of Service，拒绝服务攻击）。
+
+
+
+这种时候使用SSL可以确定通信方，SSL不仅提供加密处理，而且还使用了一种被称为**证书**的手段，可用于确定通信方。
+
+证书由第三方机构颁发，用以证明服务端和客户端是实际存在的。**（伪造证书是一个非常困难的事）**
+
+ 
+
+#### 3、报文完整性
+
+HTTP协议无法证明通信的报文完整性，即使报文被篡改，也无法获悉。
+
+像这样，请求或响应在传输途中，遭攻击者拦截并篡改内容的攻击称为**中间人攻击**（Man-in-the-Middle attack，MITM）。
+
+虽然HTTP协议有MD5和SHA-1等散列值校验的方法，但是这依然无法百分百保证确认结果正确，因为MD5和PGP本身可能会被改写。
+
+
+
+#### 4、HTTPS采用混合加密机制
+
+TLS1.2之前：握手需要2RTT，客户端通过证书（可以确认身份）获取到服务端的公共密钥，通过公共密钥发送共享密钥到服务端（非对称算法RSA），使用共享密钥通信（对称算法）。报文完整性依靠HMAC算法，发送方生成一个校验值，接收方重新计算并对比，不一致说明数据被篡改。
+
+
+
+TLS1.3：握手只需要1RTT，客户端和服务端生成临时私钥并根据算法计算公钥各自发送，通过自己的公钥和对面的私钥计算出一个共同的共享密钥，但是该共享密钥需要经过密钥派生，派生出的密钥才能真正用于会话加密。
+
+身份认依靠数字证书，服务器使用私钥对握手数据进行签名，客户端使用证书中的公钥验证签名。
+
+报文完整性依靠AEAD加密算法，发送发会有一个Tag标签，接收方重新计算Tag，不一致说明被篡改。
+
+
+
+TLS1.2虽然允许之前的加密套件，但是已经不使用了，目前使用的是ECDHE+AEAD算法，TLS1.3直接不允许使用旧算法。
+
+## Web操作
+
+### 单控制器和多控制器
+
+#### 单控制器
+
+```go
+type MyHandle struct {
+}
+
+func (m *MyHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprint(w, "返回的数据哈哈")
+    //相当于w.Write([]byte("返回的数据哈哈"))
+}
+
+func main() {
+    h := MyHandle{}
+    server := http.Server{Addr: ":8090", Handler: &h}
+    server.ListenAndServe()
+    //相当于http.ListenAndServe(":8090", &h)
+}
+```
+
+
+
+#### 多控制器
+
+在实际开发中，大部分情况不应该只有一个控制器，不同的请求应该交给不同的处理单元，在golang中支持两种多处理方式
+
+- 多个处理器(Handle)
+- 多个处理函数(HandleFunc)
+
+##### 1、多处理器
+
+即使用http.Handle把不同的URL绑定到不同的处理器中
+
+```go
+type MyHandle struct {
+}
+type MyOtherHandle struct {
+}
+
+func (m *MyHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprint(w, "返回的数据哈哈")
+    //相当于w.Write([]byte("返回的数据哈哈"))
+}
+func (m *MyOtherHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprint(w, "返回的数据哈哈")
+    //相当于w.Write([]byte("返回的数据哈哈"))
+}
+
+func main() {
+    h := MyHandle{}
+    h2 := MyOtherHandle{}
+    http.Handle("/a", &h)
+    http.Handle("/abc", &h2)
+    http.ListenAndServe(":8090", nil)
+}
+```
+
+##### 2、多处理函数
+
+把不同的URL绑定到不同的函数上
+
+```go
+func first(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprint(w, "多处理函数--first")
+    //相当于w.Write([]byte("返回的数据哈哈"))
+}
+func second(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprint(w, "多处理函数--second")
+    //相当于w.Write([]byte("返回的数据哈哈"))
+}
+
+func main() {
+    http.HandleFunc("/f", first)
+    http.HandleFunc("/s", second)
+    http.ListenAndServe(":8090", nil)
+}
+```
+
+
+
+### 获取请求头和获取请求参数
+
+#### 1、获取请求头
+
+```go
+func now(w http.ResponseWriter, r *http.Request) {
+    h := r.Header
+    fmt.Println(h)
+    fmt.Println(h["Accept-Encoding"])
+    fmt.Println(len(h["Accept-Encoding"]))
+}
+
+func main() {
+    http.HandleFunc("/now", now)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+#### 2、获取请求参数
+
+```go
+func now(w http.ResponseWriter, r *http.Request) {
+    r.ParseForm() //必须先解析成Form，否则无数据
+    fmt.Println(r.Form)
+    fmt.Println(r.Form["url_long"])
+    fmt.Println(r.Form["url_long"][0])
+}
+
+func main() {
+    http.HandleFunc("/now", now)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+#### 3、验证表单的输入
+
+```go
+//验证手机号
+//使用MatchString函数和正则表达式
+//其他一些字符串都可以这样判断
+if m, _ := regexp.MatchString(`^(1[3|4|5|8][0-9]\d{4,8})$`, r.Form.Get("mobile")); !m {
+    return false
+}
+```
+
+
+
+
+
+### 传统Web项目结构
+
+```go
+--项目名
+	--src
+	--static
+		--css
+		--images
+		--js
+	--view
+		--index.html
+	--main.go
+```
+
+
+
+### HTML模版和静态资源显示
+
+#### 1、HTML模版显示
+
+Go语言标准库中html/template包提供了html模版支持，把HTML当作模版可以在访问控制器显示HTML模版信息
+
+使用template.ParseFiles()可以解析多个模版文件
+
+```go
+func welcome(w http.ResponseWriter, r *http.Request) {
+    t, _ := template.ParseFiles("view/index.html")
+    t.Execute(w, nil)
+}
+
+func main() {
+    http.HandleFunc("/", welcome)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+**目录结构**
+
+![image-20260205204528371](C:\Users\16053\AppData\Roaming\Typora\typora-user-images\image-20260205204528371.png)
+
+
+
+#### 2、静态资源显示
+
+把静态资源文件放到特定的文件夹中，使用Go语言的文件服务就可以进行加载
+
+```go
+func welcome(w http.ResponseWriter, r *http.Request) {
+    t, _ := template.ParseFiles("view/index.html")
+    t.Execute(w, nil)
+}
+
+func main() {
+    http.HandleFunc("/", welcome)
+    http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+**目录结构**
+
+![image-20260205205236732](C:\Users\16053\AppData\Roaming\Typora\typora-user-images\image-20260205205236732.png)
+
+
+
+### 向模版中传递数据和调用函数
+
+#### 一、向模版中传递数据
+
+- 可以在HTML中使用{{}}获取template.Execute()第二个参数传递的值
+- 最常用的{{.}}中的"."是指针，指向当前变量，成为"dot"
+
+##### 1、字符串类型
+
+```go
+func welcome(w http.ResponseWriter, r *http.Request) {
+    t, _ := template.ParseFiles("view/index.html")
+    t.Execute(w, "smallming")
+}
+
+func main() {
+    http.HandleFunc("/", welcome)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+```html
+<body>
+<pre>
+    尊敬的{{.}}先生/女士
+        您已经被我公司录取。
+</pre>
+</body>
+```
+
+##### 2、结构体类型
+
+```go
+type User struct {
+	Name string
+	Age  int
+}
+
+func welcome(w http.ResponseWriter, r *http.Request) {
+    t, _ := template.ParseFiles("view/index.html")
+    t.Execute(w, User{"张三", 19})
+}
+
+func main() {
+    http.HandleFunc("/", welcome)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+```html
+<body>
+<pre>
+    姓名：{{.Name}}<br/>
+    年龄：{{.Age}}
+</pre>
+</body>
+```
+
+PS：结构体的字段一定要首字母大写，否则模版访问不到。
+
+##### 3、map类型
+
+```go
+type User struct {
+    Name string
+    Age  int
+}
+
+func welcome(w http.ResponseWriter, r *http.Request) {
+    t, _ := template.ParseFiles("view/index.html")
+    m := make(map[string]interface{})
+    m["user"] = User{"张三", 19}
+    m["money"] = 1000
+    t.Execute(w, m)
+}
+
+func main() {
+    http.HandleFunc("/", welcome)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+```html
+<body>
+<pre>
+    姓名：{{.user.Name}}<br/>
+    年龄：{{.user.Age}}<br/>
+    工资：{{.money}}
+</pre>
+</body>
+```
+
+#### 二、在模版中调用函数
+
+##### 1、调用系统函数
+
+```go
+func welcome(w http.ResponseWriter, r *http.Request) {
+    t, _ := template.ParseFiles("view/index.html")
+    time1 := time.Now()
+    t.Execute(w, time1)
+}
+
+func main() {
+    http.HandleFunc("/", welcome)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+```html
+<body>
+<pre>
+完整时间：{{.}}
+年：{{.Year}}
+月：{{.Month}}
+日：{{.Day}}
+格式化时间：{{.Format "2006-01-02 15:04:05"}}
+</pre>
+</body>
+```
+
+##### 2、调用自定义函数
+
+如果希望调用自定义函数，需要借助html/template包下的FuncMap进行映射。
+
+函数被添加映射后，只能通过函数在FuncMap中的key调用函数。
+
+```go
+func MyFormat(t time.Time) string {
+    return t.Format("2006-01-02 15:04:05")
+}
+
+func welcome(w http.ResponseWriter, r *http.Request) {
+    //将自定义函数绑定到map上
+    fm := template.FuncMap{"mf": MyFormat}
+    //新建一个空模版，将函数绑定到该模版
+    t := template.New("index.html").Funcs(fm)
+    //把我们的html解析到该空模版上
+    t, _ = t.ParseFiles("view/index.html")
+    time1 := time.Now()
+    t.Execute(w, time1)
+}
+
+func main() {
+    http.HandleFunc("/", welcome)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+```html
+<body>
+<pre>
+完整时间：{{.}}
+调用格式化函数：{{mf .}}
+</pre>
+</body>
+```
+
+
+
+### 模版使用if、range等
+
+#### 1、二元比较运算函数
+
+```go
+eq  <=>	 ==
+ne	<=>	 !=
+lt	<=>	 <
+le	<=>	 <=
+gt	<=>	 >
+ge	<=>	 >=
+```
+
+#### 2、if语句
+
+```html
+<body>
+取出数据{{.}}<br/>
+{{if .}}
+    执行了if
+{{else}}
+    执行了else
+{{end}}<br/>
+html模版信息
+</body>
+```
+
+```html
+<body>
+    {{$n:=123}}
+    {{if gt $n 456}}
+        执行if
+    {{else}}
+        执行else
+    {{end}}
+</body>
+```
+
+#### 3、range的使用
+
+```html
+<body>
+    {{.}}<br/>
+    {{range .}}
+        {{.}}<br/>
+    {{end}}
+</body>
+```
+
+
+
+### 模版嵌套
+
+- 在实际项目中常常出现页面复用的情况，例如：整个网站的头部信息和底部信息复用
+
+- 可以使用动作{{template "模版名称"}}来引用模版
+
+- 引用的模版必须在HTML中定义这个模版
+
+定义名称
+
+```html
+{{define "模版名称"}}
+html
+{{end}}
+```
+
+示例：
+
+```html
+{{define "head"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+head.html {{.}}
+</body>
+</html>
+{{end}}
+```
+
+```html
+{{define "foot"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+foot.html {{.}}
+</body>
+</html>
+{{end}}
+```
+
+```html
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script type="text/javascript" src="/static/js/index.js"></script>
+</head>
+<body>
+{{/*引用head模版*/}}
+{{template "head" "head的参数"}}<br/>
+中间内容<br/>
+{{template "foot" "head的参数"}}
+</body>
+</html>
+{{end}}
+```
+
+在go中需要加载所有文件再选定主模版
+
+```go
+func welcome(w http.ResponseWriter, r *http.Request) {
+    //解析所有文件
+    t, err := template.ParseFiles("view/index.gohtml", "view/head.gohtml", "view/foot.gohtml")
+    if err != nil {
+       log.Printf("err:%v", err)
+    }
+    //选定主模版layout
+    t.ExecuteTemplate(w, "layout", nil)
+}
+
+func main() {
+    http.HandleFunc("/", welcome)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+
+
+### 文件上传
+
+文件中ioutil包已经弃用，这里使用io包和os包
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>文件上传</title>
+</head>
+<body>
+<form action="upload" method="post" enctype="multipart/form-data">
+    文件名:<input type="test" name="name"/><br/>
+    文件:<input type="file" name="file"/><br/>
+    <input type="submit" value="提交"/>
+</form>
+</body>
+</html>
+```
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>文件上传</title>
+</head>
+<body>
+    文件上传成功
+</body>
+</html>
+```
+
+```go
+func welcome(w http.ResponseWriter, r *http.Request) {
+    t, _ := template.ParseFiles("view/filetest.gohtml")
+    t.Execute(w, nil)
+
+}
+
+func upload(w http.ResponseWriter, r *http.Request) {
+    //从表单中获取名为"name"的值
+    fileName := r.FormValue("name")
+    //从表单中获取名为"file"的文件字段
+    //file是文件句柄
+    //fileHeader是文件的元信息，包括文件名、大小等
+    file, fileHeader, _ := r.FormFile("file")
+    //读取文件中的内容
+    b, _ := io.ReadAll(file)
+    os.WriteFile("D:/"+fileName+fileHeader.Filename[strings.LastIndex(fileHeader.Filename, "."):], b, 0777)
+    t, _ := template.ParseFiles("view/success.gohtml")
+    t.Execute(w, nil)
+}
+
+func main() {
+    http.HandleFunc("/", welcome)
+    http.HandleFunc("/upload", upload)
+    http.ListenAndServe(":9090", nil)
+}
+```
+
+
+
+### 文件下载
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>文件上传</title>
+</head>
+<body>
+<a href="download?filename=abc.png">下载</a>
+</body>
+</html>
+```
+
+```go
+func download(w http.ResponseWriter, r *http.Request) {
+    //从表单中获取文件名称
+    filename := r.FormValue("filename")
+    //根据路径去找文件
+    f, err := os.ReadFile("D:/" + filename)
+    if err != nil {
+        
+       fmt.Fprintln(w, "文件下载失败", err)
+       return
+    }
+
+    h := w.Header()
+    //设置相应内容的MIME类型魏二进制流
+    //设置为文件处理，而不是直接显示
+    h.Set("Content-Type", "application/octet-stream")
+    //attachment设置内容处置方式为附件下载
+    //filename="..."指定下载时的默认文件名filename
+    h.Set("Content-Disposition", "attachment;filename="+filename)
+    //将文件内容写入http响应体发送
+    w.Write(f)
+}
+```
+
+
+
+### ajax请求返回json数据
+
+#### 1、json配置
+
+```go
+//字段被本包忽略
+Field int `json:"-"`
+//字段在json里的键为"myName"
+Field int `json:"myName"`
+//字段在json里的键为"myName"且如果字段为空值将在对象中省略掉
+Field int `json:"myName,omitempty"`
+//字段在json里的键为"Field"（默认值），但如果字段为空值会跳过；注意前导的逗号
+Field int `json:",omitempty"`
+```
+
+#### 2、前端获取json数据并放到表格打印
+
+```html
+<table border="1">
+    <tr>
+        <td>姓名</td>
+        <td>年龄</td>
+    </tr>
+    <tbody id="mytbody">
+    </tbody>
+</table>
+```
+
+```js
+$(function() {
+    //绑定点击事件
+    $("button").click(function() {
+        //从服务器获取json数据，注意这里jQuery已经帮你解析好了，可以直接用
+        $.post("/showUser", function(data) {
+            var result = "";
+            for (var i = 0; i < data.length; i++) {
+                result += "<tr>";
+                result += "<td>" + data[i].Name + "</td>";
+                result += "<td>" + data[i].Age + "</td>";
+                result += "</tr>";
+            }
+            $("#mytbody").html(result);  // 数据替换到mytbody表格中
+        });
+    });
+});
+```
+
+```go
+func showUser(w http.ResponseWriter,r *http.Request){
+    us:=make([]User,0)
+    us=append(us, User{Name:"张三", Age: 12})
+    us=append(us, User{Name:"李四", Age: 13})
+    us=append(us, User{Name:"王五", Age: 14})
+    b,_:=json.Marshal(us)
+	//告知浏览器这是一个json字符串
+	w.Header().Set("Content-Type","application/ json:charset=utf-8")
+	fmt.Fprintln (w, string(b))
+}
+```
+
+​	
+
+### 服务器正则验证
+
+#### 1、Perl字符族
+
+```go
+\d == [0-9]
+\D == [^0-9]
+\s == [\t\n\f\r]
+\S == [^\t\n\f\r]
+\w == [0-9A-Za-z_]
+\W == [^0-9A-Za-z_]
+^代表非
+```
+
+#### 2、常用正则
+
+```go
+\+特殊字母：代表某个取值范围
+[内容]：代表一个字符，字符的取值范围就是内部的内容
+{n,m}：个数，大于等于n小于等于m个
+.：一个任意内容的字符
+^：开始
+$：结束
++：至少一个
+*：任意个
+?：最多一个
+```
+
+#### 3、go语言对正则的支持
+
+go语言的regexp包中提供了对正则表达式的支持，并提供了RegExp，内部有互斥锁，是并发安全的。
+
+```go
+//方法一
+r,_:=regexp.MatchString(`正则式`,"字符串")
+
+//方法二
+r:=regexp.MustCompile(`正则式`)
+fmt.Println(r.MatchString("字符串"))
+//第二个参数是[]string的长度,-1表示不限制长度
+fmt.Println(r.FindAllString("56A6B7C", -1))
+
+//其他函数
+//把正则表达式匹配的结果当作拆分符，拆分字符串
+//n>0：I返回最多n个子字符串，最后一个子字符串是剩余未进行分割的部分
+//n == 0：返回nil （zero substrings)
+//n<0：返回所有子字符串
+r.Split("12345qwert",-1)
+
+//把满足正则要求的内容替换成指定字符串
+r.ReplaceAllString("12345qwert","替换了")
+```
+
+
+
+
+
+## Cookie和Session
+
+### Cookie简介
+
+Cookie就是客户端存储技术，以**键值对**的形式存在。
+
+在B/S架构中，服务器端产生Cookie响应给客户端，浏览器接收后把Cookie存在在指定的文件夹中，以后每次请求浏览器都会把Cookie内容放入到请求中。
+
+### Go语言对Cookie的支持
+
+```go
+type Cookie struct {
+    Name   string		//Cookie的名字
+    Value  string		//Cookie的值
+    Quoted bool // indicates whether the Value was originally quoted
+
+    Path       string    // optional	有效范围
+    Domain     string    // optional	可访问Cookie的域
+    Expires    time.Time // optional	过期时间
+    RawExpires string    // for reading cookies only
+
+    // MaxAge=0 means no 'Max-Age' attribute specified.
+    // MaxAge<0 means delete cookie now, equivalently 'Max-Age: 0'
+    // MaxAge>0 means Max-Age attribute present and given in seconds
+    MaxAge      int		//最大存活时间
+    Secure      bool
+    HttpOnly    bool	//是否可以通过脚本访问
+    SameSite    SameSite
+    Partitioned bool
+    Raw         string
+    Unparsed    []string // Raw text of unparsed attribute-value pairs
+}
+```
+
+### Go操作Cookie
+
+```go
+func welcome(w http.ResponseWriter, r *http.Request) {
+    t, _ := template.ParseFiles("view/cookietest.gohtml")
+    t.Execute(w, nil)
+}
+func setCookie(w http.ResponseWriter, r *http.Request) {
+	c := http.Cookie{Name: "myname", Value: "myvalue"}
+	http.SetCookie(w, &c)	//设置到响应头
+	t, _ := template.ParseFiles("view/cookietest.gohtml")
+	t.Execute(w, nil)
+}
+
+func getCookie(w http.ResponseWriter, r *http.Request) {
+	cs := r.Cookies()	//遍历得到Cookie的全部键值对
+	t, _ := template.ParseFiles("view/cookietest.gohtml")
+	t.Execute(w, cs)	//传给模版
+}
+
+func main() {
+	http.HandleFunc("/", welcome)
+	http.HandleFunc("/setCookie", setCookie)
+	http.HandleFunc("/getCookie", getCookie)
+	http.ListenAndServe(":9090", nil)
+}
+```
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cookie</title>
+</head>
+<body>
+<a href="setCookie">产生Cookie</a>
+<br/>
+<a href="getCookie">获取Cookie</a>
+<br/>
+{{.}}
+</body>
+</html>
+```
+
+
+
+### Cookie的属性设置
+
+#### 1、HttpOnly
+
+HttpOnly：控制Cookie内容是否可以被JavaScript访问到。通过设置HttpOnly为true是防止XSS攻击防御手段之一。
+
+HttpOnly默认是false，是能被JS获取到的。
+
+JS中可以通过导入jquery.cookie.js库来使用jquery来获取客户端Cookie内容。
+
+**代码示例：**
+
+```GO
+//将HttpOnly设置为true，JS就访问不到了
+c := http.Cookie{Name: "myname", Value: "myvalue" ,HttpOnly: true}
+```
+
+```html
+<!--JS获取Cookie的内容-->
+<script src="/static/js/jquery.cookie.js"></script>
+<script type="text/javascript">
+    $(function () {
+        $("button").click(function () {
+            var $value = $.cookie("myname")
+            alert($value)
+        })
+    })
+</script>
+```
+
+#### 2、Path
+
+Path属性设置Cookie的访问范围
+
+默认是"/"表示当前目录下所有目录都可以访问
+
+Path设置路径及其子目录都可以访问
+
+```go
+c := http.Cookie{Name: "myname", Value: "myvalue", HttpOnly: true, Path: "/abc/"}
+```
+
+#### 3、Expires
+
+Cookie默认存活时间是浏览器不关闭，当浏览器关闭后，Cookie失效
+
+MaxAge也可以设置Cookie存活多长时间，但是很多浏览器不支持，建议使用Expires
+
+Expires是time.Time类型，所以设置时需要明确设置过期时间
+
+```go
+c := http.Cookie{Name: "myname", Value: "myvalue", HttpOnly: true, Path: "/abc/", MaxAge: 10,
+    Expires: time.Date(2026, 1, 1, 1, 1, 1, 1, time.Local)}
+
+c := http.Cookie{Name: "myname", Value: "myvalue", HttpOnly: true, Path: "/abc/", MaxAge: 10,
+		Expires: time.Now().Add(5)}
+```
+
+
+
+### Cookie的延伸：Session
+
+session就是在服务器保存用户操作的历史信息。
+
+服务器通过session id标识session，session id由服务器负责产生并发送给客户端。
+
+session和cookie的主要区别就是，session的用户信息保存在服务端的session对象中，原生cookie保存在客户端中。所以session解决了一些cookie上面的安全隐患。
+
+#### 1、session id的发送方式
+
+- **Cookie**
+
+  服务端通过设置 Set-cookie 头就可以将 session 的标识符传送到客户端，而客户端此后的每一次请求都会带上这个标识符，另外一般包含 session 信息的 cookie 会将失效时间设置为 0 (会话 cookie)，即浏览器进程有效时间。至于浏览器怎么处理这个 0，每个浏览器都有自己的方案，但差别都不会太大 (一般体现在新建浏览器窗口的时候)；
+
+- **URL 重写**
+  所谓 URL 重写，就是在返回给用户的页面里的所有的 URL 后面追加 session 标识符，这样用户在收到响应之后，无论点击响应页面里的哪个链接或提交表单，都会自动带上 session 标识符，从而就实现了会话的保持。虽然这种做法比较麻烦，但是，如果客户端禁用了 cookie 的话，此种方案将会是首选。
+
+
+
+## Restful风格
+
+REST（Representational State Transfer，表述性状态转移）是一种设计风格，主要用于 Web API 设计。
+
+### 1、核心思想
+
+1. **资源（Resource）为中心**
+   - 资源是系统中的核心对象，比如用户（User）、文章（Article）、订单（Order）等。
+   - 每个资源都有唯一的 URL 来标识。
+
+2. **无状态（Stateless）**
+   - 每个请求都应包含完成请求所需的所有信息。
+   - 服务器不会保存客户端的会话状态（session）。
+
+3. **统一接口（Uniform Interface）**
+   - 使用标准的 HTTP 方法（GET、POST、PUT、DELETE、PATCH）对资源进行操作。
+
+4. **使用标准 HTTP 状态码**
+   - 200 OK、201 Created、204 No Content、400 Bad Request、404 Not Found 等。
+
+
+
+### 2、资源设计
+
+资源通常是系统中的实体，用名词来表示。REST 推荐使用 **复数形式**：
+
+| 实体 | REST 资源名称 |
+| ---- | ------------- |
+| 用户 | `/users`      |
+| 文章 | `/articles`   |
+| 订单 | `/orders`     |
+
+
+
+### 3、路径设计
+
+**集合资源**：表示资源列表
+
+```http
+GET /users        # 获取所有用户
+POST /users       # 创建新用户
+```
+
+**单个资源**：通过 ID 唯一标识
+
+```http
+GET /users/123    # 获取 ID 为 123 的用户
+PUT /users/123    # 更新 ID 为 123 的用户（全量更新）
+PATCH /users/123  # 更新 ID 为 123 的用户（部分更新）
+DELETE /users/123 # 删除 ID 为 123 的用户
+```
+
+**子资源 / 关联资源**：体现资源关系
+
+```http
+GET /users/123/orders      # 获取用户 123 的订单
+POST /users/123/orders     # 为用户 123 创建订单
+```
+
+
+
+### 4、HTTP方法对应关系
+
+| HTTP 方法 | 对应操作               | 说明                                       |
+| --------- | ---------------------- | ------------------------------------------ |
+| GET       | 读取（Read）           | 查询资源，不修改服务器状态                 |
+| POST      | 创建（Create）         | 新建资源，服务器生成 ID                    |
+| PUT       | 更新（Update）         | 全量更新资源，如果资源不存在可创建（可选） |
+| PATCH     | 更新（Partial Update） | 部分修改资源                               |
+| DELETE    | 删除（Delete）         | 删除资源                                   |
+| OPTIONS   | 查询支持的方法         | 返回资源允许的操作（常用于 CORS）          |
+
+
+
+
+
+## 路由多路复用
+
+在目前所学内容中每个请求都需要绑定一个HandlerFunc，而在实际项目中会有很多URL，且可能出现满足特定规律的URL，例如：/sxt/it和/sxt/baizhan都是以/sxt/开头。且如果这两个URL里面代码也差不多时，写两个Func就属于代码冗余了。
+
+可以使用restful风格把满足特定格式url和功能类似的代码提入到一个func中实现代码复用。
+
+![image-20260209211239370](C:\Users\16053\AppData\Roaming\Typora\typora-user-images\image-20260209211239370.png)
+
+### 1、从github上下载第三方库
+
+```go
+go get github.com/gorilla/mux
+```
+
+**操作代码**
+
+```go
+func demo(w http.ResponseWriter, r *http.Request) {
+    //val是一个map
+    val := mux.Vars(r)
+    fmt.Fprint(w, val["url"])
+}
+func main() {
+    r := mux.NewRouter()
+    //这里的url是上面val的键
+    r.HandleFunc("/abc/{url}", demo)
+    http.ListenAndServe(":9090", r)
+}
+```
+
+### 2、使用Go标准库的net/http
+
+Go 1.22后新增了多路路由
+
+**操作代码**
+
+```go
+func demo(w http.ResponseWriter, r *http.Request) {
+    val := r.PathValue("url")
+    fmt.Fprint(w, val)
+}
+
+func main() {
+	r := http.NewServeMux()
+	r.HandleFunc("/abc/{url}", demo)
+	http.ListenAndServe(":9090", r)
+}
+```
+
+
+
+## 状态码表达结果
+
+使用 HTTP 状态码表示操作结果：
+
+| 状态码 | 类别                             | 原因短语                   |
+| ------ | -------------------------------- | -------------------------- |
+| 1XX    | Informational（信息性状态码）    | 接收的请求正在处理         |
+| 2XX    | Success（成功状态码）            | 请求正常处理完毕           |
+| 3XX    | Redirection（重定向状态码）      | 需要进行附加操作以完成请求 |
+| 4XX    | Client Error（客户端错误状态码） | 服务器无法处理请求         |
+| 5XX    | Server Error（服务器错误状态码） | 服务器处理请求出错         |
+
+常用HTTP状态码：
+
+| 状态码 | 含义                  | 原因         |
+| :----- | :-------------------- | :----------- |
+| 200    | OK                    | 请求成功     |
+| 201    | Created               | 创建资源     |
+| 204    | No Content            | 删除成功     |
+| 301    | Moved Permanently     | 永久重定向   |
+| 302    | Found                 | 临时重定向   |
+| 400    | Bad Request           | 请求参数错误 |
+| 401    | Unauthorized          | 未认证       |
+| 403    | Forbidden             | 无权限       |
+| 404    | Not Found             | 资源不存在   |
+| 500    | Internal Server Error | 服务器错误   |
+
